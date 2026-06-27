@@ -1,3 +1,8 @@
+-A vs .
+git add . stages changes ONLY IN THE CURRENT DIRECTORY and BELOW relative to wherever youre running the command. Whereas git add -A stages changes across the ENTIRE REPO, regardless of your current directory.
+
+dotenv loads env vars at runtime, every time the app boots, including in prod. So dotenv needs to be a reg dependency
+
 cascade runs parent -> child, never child -> parent
 if you have note_lists as the child - it has FK cols pointing UP to the parents, notes and lists.
 -Delete a row from notes (delete note) -> postgres looks at note_lists finding any rows referencing that note_id and deletes those link rows too
