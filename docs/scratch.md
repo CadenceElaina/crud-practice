@@ -1,3 +1,5 @@
+-h localhost flag forces psql to connect over TCP instead of the Unix socket - Node's pg library connects over TCP by default. 
+
 -A vs .
 git add . stages changes ONLY IN THE CURRENT DIRECTORY and BELOW relative to wherever youre running the command. Whereas git add -A stages changes across the ENTIRE REPO, regardless of your current directory.
 
