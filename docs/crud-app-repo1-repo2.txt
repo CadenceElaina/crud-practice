@@ -1,0 +1,48 @@
+Repo 1: crud-app (what you have now)
+Purpose: Learning artifact. The answer to "how do I set up TS + Express + Postgres from scratch?"
+Keep it deliberately simple. The goal isn't a real app — it's a reference you can hand to future-you or put on GitHub as a template. That means:
+
+Well-commented everything (you're already doing this)
+Complete but minimal — users, notes, auth. No feature creep.
+Finish the routes, test them in Postman, write a solid README
+Done. Frozen. You reference it, not extend it.
+Repo 2: second-brain (the actual app)
+Purpose: Your personal knowledge base. Built for real use, evolves over time.
+The architecture here is different because the intent is different. Some things that change:
+Schema additions worth thinking about now:
+notes          — same core, add: pinned, source_url, note_type
+tags           — same
+lists          — rename to "collections" or keep lists, your call
+── new ──
+embeddings     — vector column (pgvector) for RAG later
+attachments    — file refs if you ever want to paste images/pdfs
+The feed feature specifically is just a well-designed GET /api/notes with:
+
+Keyset pagination (cursor-based, you already have the SQL)
+Composable filters: ?tag=, ?collection=, ?search=, ?since=, ?pinned=true
+Sort: newest, oldest, updated
+
+That's the whole feed. It's not architecturally complex — it's just a flexible query builder in Express feeding a frontend that renders infinitely.
+The RAG/analysis angle — this is actually very achievable and not as scary as it sounds:
+Write note → generate embedding (OpenAI or local Ollama) 
+          → store in pgvector column
+          → later: "find notes similar to this idea" = cosine similarity search
+pgvector is a Postgres extension, so it fits your existing stack perfectly. You wouldn't add this day one but designing the schema with a nullable embedding vector(1536) column costs you nothing and keeps the door open.
+
+Realistic Build Phases for Repo 2
+Phase 1 — Backend foundation (build on what you know)
+  Same stack: TS + Express + Postgres
+  Auth, notes CRUD, tags, collections
+  Feed endpoint with keyset pagination + filters
+
+Phase 2 — Frontend
+  React (you'll learn this eventually anyway)
+  The feed UI — infinite scroll, filter bar, sort toggle
+  Note editor — markdown support probably
+
+Phase 3 — Intelligence layer (fun stuff)
+  pgvector + embeddings
+  "Related notes" sidebar
+  Semantic search ("find notes about concurrency" even if 
+   you never used that exact word)
+  RAG: ask questions, get answers grounded in your own notes

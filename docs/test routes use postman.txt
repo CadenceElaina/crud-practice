@@ -1,0 +1,128 @@
+test routes - use postman since we use JWT auth headers for most things
+
+Auth & users (no token needed)
+POST /api/users (register)
+-json{name,email,password}
+GET /api/users (verify registration)
+-array of users excluding their passwords
+POST /api/login (verify password via bcrypt.compare()) 
+-returns signed jwt.sign() token back to the client
+-handle refresh token, expire tokens, etc or just give user x amount of time on a token then require a new login each time
+
+Protected Notes Routes (protected - requires token)
+in postman go to Auth tab of these requests, select Bearer Token, and paste the JWT there.
+POST /api/notes (create note)
+- return body {title, content} 
+GET /api/notes (get all my notes)
+- return only a signed in users notes
+PUT /api/notes/:id (update note)
+-/api/notes/:id 
+-return {updated title, updated content}
+DELETE /api/notes/:id (Delete note)
+
+
+Advanced Queries and Filtering
+GET /api/notes?list_id=3 //filter by list id 
+SELECT n.note_id, n.title, n.content, l.name AS list_name FROM notes n INNER JOIN note_lists nl ON n.note_id = nl.note_id INNER JOIN lists l ON nl.list_id = l.list_id WHERE l.name = 'searched_text'; or use id if yo uahve the id
+
+
+GET /api/notes?search=user_entered_search_text // text /search query
+SELECT n.note_id, n.title, n.content, t.tag_name, n.created_at, n.updated_at
+FROM notes n
+INNER JOIN note_tags nt ON n.note_id = nt.note_id
+INNER JOIN tags t ON nt.tag_id = t.tag_id
+WHERE t.tag_name ILIKE 'joy';
+
+GET /api/notes?list_id=3&searc=ACID_principles
+SELECT u.name, u.email 
+FROM users u 
+INNER JOIN notes n ON u.user_id = n.user_id 
+INNER JOIN note_lists nl ON n.note_id = nl.note_id 
+INNER JOIN lists l ON nl.list_id = l.list_id 
+WHERE l.name = 'ACID Principles';
+
+Time based filtering (timestamps)
+TIMESTAMPTZ DEFAULT NOW() + trigger to update udpated_at
+notes created in last 7 days
+SELECT title, created_at
+FROM notes
+WHERE created_at >= NOW() - INTERVAL '7 days';
+
+notes modified since they were created
+SELECT title 
+FROM notes 
+WHERE updated_at > created_at; 
+
+Filtering by "emptiness"
+-data that isnt connected to anything - LEFT JOIN + NULL check
+Find "Unified" notes (Notes that belong to zero lists)
+SELECT n.title
+FROM notes n
+LEFT JOIN note_lists nl ON n.note_id = nl.note_id
+WHERE nl.list_id IS NULL; -- If its NULL then there are no entires in teh junction table
+Find "Unused" tags (tags that no notes are using):
+SEELCT t.tag_name
+FROM tags t
+LEFT JOIN note_tags nt ON t.tag_id = nt.tag_id
+WHERE nt.note_id IS NULL;
+
+Aggregation Filtering (HAVING + COUNT)
+filter data by how many items it has
+Find popular tags
+SELECT t.tag_name, COUNT(nt.note_id) AS note_count
+FROM tags t
+INNER JOIN note_tags nt ON t.tag_id = nt.tag_id
+GROUP BY t.tag_id, t.tag_name
+HAVING COUNT(nt.note_id) > 5; 
+
+App with lots of data? might use pagination
+LIMIT: how many rows to take
+OFFSET: how many rows to skip
+
+1. standard 10 notes per page
+page 1: skip 0 take 10
+page 2: skip 10 take 10
+page 3: skip 20 take 10
+
+page 3 of users notes ordered by most recently updated
+SELECT note_id, title, updated_at
+FROM notes
+WHERE user_id = 1
+ORDER BY updated_at DESC
+LIMIT 10 OFFSET 20; -- skips first 20 notes, returns the next 10 OFFSET = (PageNumber - 1) * PageSize
+
+2. Advanced way: Keyset Pagination (cursor-based)
+limit/offset work well but if a user is on page 1 and someone inserts a new ntoe, everything shifts down by one. When the user clicks "Page 2", they will see the last note from Page 1 a second time. Plus high offsets like OFFSET 50000 become slow because Postgres would still read through throse first 50,000 rows just to discard them ex: only get notes within x timerange
+For massive lists or infinite-scroll feeds, we use Keyset Pagination. Instead of saying "skip 20 rows," you say: "Give me the next 10 rows where the updated_at timestamp is older than the last note I just saw."
+query for page 1
+SELECT note_id, title, updated_at
+FROM notes
+WHERE user_id = 1
+ORDER BY updated_at DESC, note_id DESC
+LIMIT 10;
+
+(Let's say the 10th note returned had an updated_at of '2026-06-27 12:00:00' and a note_id of 45).
+
+Query for Page 2:
+Instead of OFFSET, your app passes that timestamp and ID into the next query:
+SQL
+
+SELECT note_id, title, updated_at
+FROM notes
+WHERE user_id = 1
+  AND (updated_at, note_id) < ('2026-06-27 12:00:00'::timestamptz, 45) -- Row values comparison
+ORDER BY updated_at DESC, note_id DESC
+LIMIT 10;
+
+
+get all users
+create user
+update user info
+delete user
+
+get all notes, notes by tag, notes by list, notes by user(s), notes with specific text / regex inclusive exclusive requiring not requiring includes not includes, - limit to one user or all users, more filtering
+post note 
+update note
+delete note(s)
+
+

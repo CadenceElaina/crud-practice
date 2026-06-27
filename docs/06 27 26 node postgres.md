@@ -1,4 +1,53 @@
 // 06/27/26
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+a JOIN combines tables horizaontally (adding columns side-by-side based on a match).
+A UNION combines tables vertically (stacking rows from two queries on top of each other). 
+
+
+---
+
+POST req
+express parses body -> pg sends the parameterized query and postgres inserts and returns the row, express serialized it to json
+
+---
+
+postman: new tab -> choose http method (GET,PUT,POST,DELETE,PATCH) -> body raw json -> type message to send ex:
+POST http://localhost:5001/api/users
+body: {
+"name": "your_name",
+"email": "youremail@gmail.com",
+"password": "password"
+}
+-> response: {
+"user_id": 1,
+"name": "your_name",
+"email": "youremail@gmail.com",
+"password": "password",
+"created_at": "2026-06-27T14:07:01.487Z"
+}
+
+---
+
+order matters.. top to bottom every req
+middleware: every incoming request passes through a chain of functions before it ever reaches a route handler. (req,res,next) - express middleware
+express.json() - reads the raw request body parses it as JSON and attaches the result to req.body w/o this req.body stays undefined
+
+---
+
 module always refers to the current file's module object. require.main refers to whichever file was originally executed as teh entry point (node dist/index.js) - when you run db.ts/db.js directly those two are the same object when something else import's it theyre not.
 
 ---

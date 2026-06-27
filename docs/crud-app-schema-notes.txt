@@ -45,8 +45,7 @@ CREATE TABLE users (
     name VARCHAR(50) NOT NULL,
     email VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(500) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    last_login TIMESTAMPTZ 
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE lists (
@@ -74,8 +73,7 @@ CREATE TABLE notes (
         -- Using TEXT for unlimited capacity instead of limiting to a massive VARCHAR
        -- list_id INT REFERENCES lists(list_id) ON DELETE SET NULL, --(delete a list -> notes survive, just unfiled)
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        pinned BOOLEAN DEFAULT FALSE
+        updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Attach the timestamp trigger to the notes table
@@ -104,10 +102,11 @@ CREATE TABLE note_tags (
 CREATE TABLE note_lists (
    -- list_id SERIAL PRIMARY KEY,
     note_id INT REFERENCES notes(note_id) ON DELETE CASCADE,
-    list_id INT REFERENCES lists(list_id) ON DELETE CASCADE,
+    list_id INT references lists(list_id) ON DELETE CASCADE,
     PRIMARY KEY (list_id, note_id)
 );
 
 -- add indexes so notes / lists can be found by tag id / note id
 CREATE INDEX idx_note_tags_tag_id ON note_tags(tag_id); -- naming convention: (idx_+table+col)
 CREATE INDEX idx_note_lists_note_id ON note_lists(note_id); -- idx+table+col
+
