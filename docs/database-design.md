@@ -2,47 +2,66 @@
 
 ## 1. Local Environment Setup (CLI Commands)
 
-terminal/bash uses # for comments but psql uses --
+> terminal/bash uses `#` for comments — psql uses `--`
 
+```bash
 # Check if PostgreSQL is running and accepting connections
-
 pg_isready
 
 # Create a new database from the terminal
-
 sudo -u postgres createdb name_of_db
 
 # Create a new database user interactively
-
 sudo -u postgres createuser --interactive
 
 # Connect to your database via the psql CLI tool
-
 psql name_of_db
 
-# Execute teh schema initialization script
-
+# Execute the schema initialization script
 psql -d name_of_db -f parent_dir/file_name.sql
-psql -d notesdb -f backend/schemal.sql
+psql -d notesdb -f backend/schema.sql
+```
+
+<!-- CORRECTED: 'schemal.sql' → 'schema.sql' -->
 
 ## 2. Structural Guardrails & Normalization
 
-A atomicity: transactions are all or nothing
-C consistency: valid db state -> valid db state
-I isolation: Transactions do not affect each other
-D durability: Permanent changes after commitment (data survives when server is down)
+### ACID Properties
 
-While PostgreSQL supports storing data arrays (TEXT[]) doing so violates First Normal Form (1NF)
+|       | Property    | Meaning                                                        |
+| ----- | ----------- | -------------------------------------------------------------- |
+| **A** | Atomicity   | Transactions are all-or-nothing                                |
+| **C** | Consistency | Valid DB state → valid DB state                                |
+| **I** | Isolation   | Transactions do not affect each other                          |
+| **D** | Durability  | Permanent changes after commit — data survives server restarts |
 
-- using a notes_tags junction table ensures strict data atomicity and prevention of duplicate associations using a composite Primary Key PRIMARY KEY (note_id, tag_id)
+While PostgreSQL supports storing arrays (`TEXT[]`), doing so violates [First Normal Form (1NF)](https://en.wikipedia.org/wiki/First_normal_form).
 
-Cascades vs. Nullification
--Notes & Lists: A note is an independent object. When a parent list is deleted, the note survives with list_id = NULL via ON DELETE SET NULL
--Note Tags: A row in note_tags has zero identity without its parents. If a note or tag is deleted, the bridge row is no longer needed and dropped via ON DELETE CASCADE
+Using a `note_tags` junction table ensures **referential integrity** and prevents duplicate associations via a composite Primary Key `PRIMARY KEY (note_id, tag_id)`.
 
-## 3. BEFORE UDPATE Memory Mechanics
+<!-- CORRECTED: "strict data atomicity" → "referential integrity"
+     Atomicity is a transaction property (all-or-nothing commits).
+     What the junction table provides is referential integrity — the DB
+     enforces that relationships are valid and non-duplicate. -->
 
-keep track of row updates w/o handling timestamps manually
-schema intercepts ops directly in memory before writing to physical storage (disk).
+### Cascades vs. Nullification
 
-UPDATE -> [Postgres builds new row in memory] -> [BEFORE UDPATE Trigger fires] then overwrites NEW.updated_at = NOW(); -> Modified row is written to DISK -> transaction committed permanently
+- **Notes & Lists** — a note is an independent object. When a parent list is deleted, the note survives with `list_id = NULL` via `ON DELETE SET NULL`
+- **Note Tags** — a row in `note_tags` has zero identity without its parents. If a note or tag is deleted, the bridge row is dropped via `ON DELETE CASCADE`
+
+## 3. BEFORE UPDATE Trigger Mechanics
+
+<!-- CORRECTED: 'BEFORE UDPATE' → 'BEFORE UPDATE' -->
+
+Tracks row updates without manual timestamp handling. The schema intercepts operations in memory before writing to disk.
+
+```
+UPDATE
+  → Postgres builds new row in memory
+  → BEFORE UPDATE trigger fires
+  → Overwrites NEW.updated_at = NOW()
+  → Modified row written to DISK
+  → Transaction committed permanently
+```
+
+> `NEW` isn't just the `updated_at` field — it's the entire row as it will exist after the write. The trigger overwrites one field on it before returning it.

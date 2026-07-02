@@ -49,18 +49,7 @@ CREATE TABLE users (
     last_login TIMESTAMPTZ 
 );
 
-CREATE TABLE lists (
-    list_id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
 
-CREATE TABLE tags (
-    tag_id SERIAL PRIMARY KEY,
-    tag_name VARCHAR(30) NOT NULL UNIQUE,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
 
 -- =========================================================================
 -- 3. CREATE DEPENDENT TABLES (Contains Foreign Keys)
@@ -76,6 +65,22 @@ CREATE TABLE notes (
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
         pinned BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE lists (
+    list_id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+    name VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE tags (
+    tag_id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+    tag_name VARCHAR(30) NOT NULL,-- NOT NULL UNIQUE, each user has a set of tags - tags can repeat between users
+    UNIQUE(user_id, tag_name), -- each user has a unique set of tags
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Attach the timestamp trigger to the notes table
