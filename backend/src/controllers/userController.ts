@@ -1,4 +1,5 @@
 import { Request, Response} from 'express';
+import { DatabaseError } from 'pg';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import {
@@ -9,6 +10,7 @@ import {
 } from '../services/userService';
 import {JWT_SECRET} from '../config/env';
 
+// TODO: restrict or remove before production 
 export const getUsers = async (req: Request, res: Response): Promise<void> =>{
     try{
         const users = await getAllUsers();
@@ -33,6 +35,11 @@ export const registerUser = async(
         res.status(400).json({error:'password must be at least 8 characters'});
     return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+if (!emailRegex.test(email)) {
+    res.status(400).json({ error: 'Invalid email format' });
+    return;
+}
 
     try{
         // Key strecthing: 2^saltRounds hashing operations - 2^10 = 1024,
@@ -43,18 +50,11 @@ export const registerUser = async(
         const newUser = await createUser(name, email,passwordHash);
         res.status(201).json(newUser);
     } catch(err) { 
-         if (err instanceof Error && (err as any).code === '23505'){
+         if (err instanceof DatabaseError && err.code === '23505'){
              res.status(409).json({error: 'Email already registered'});
           return;
          }
           res.status(500).json({error: err instanceof Error? err.message: 'Database'});
-    // cast to any so that the check err?.code === '23505' works otherwise compile would complain that code doesnt exist on type unknown
-        // Postgres error code 23505 = unique_violation. users.email is UNIQUE,
-        // any duplicate emails on signup gets a 409 instead of generic 500
-     //   if(err?.code == '23505'){
-       //     res.status(409).json({error: 'Email already registered'});
-         //   return;
-       // } res.status(500).json({error: err instanceof Error? err.message: 'Database'});
     }
 };
 

@@ -1,6 +1,8 @@
 import {Router} from 'express';
 import {authenticateToken} from '../middleware/auth';
-import {getNotes,
+import {
+    getNotes,
+    getNoteHandler,
     postNote,
     putNote,
     deleteNoteHandler,
@@ -15,6 +17,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get('/notes', getNotes);
+router.get('/notes/:id', getNoteHandler);
 router.post('/notes', postNote);
 router.put('/notes/:id', putNote);
 router.delete('/notes/:id', deleteNoteHandler);

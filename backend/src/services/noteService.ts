@@ -5,6 +5,8 @@ interface NoteFilters {
     // Explicit `| undefined` required because tsconfig has exactOptionalPropertyTypes enabled.
     listId?: number | undefined;
     search?: string | undefined;
+    limit?: number | undefined;
+    offset?: number | undefined;
 }
 
 /**
@@ -39,11 +41,35 @@ export const getNotesForUser = async (
         );
     }
 
+    if(filters.limit !== undefined){
+        values.push(filters.limit);
+        query += ` LIMIT $${values.length}`;
+    }
+
+    if(filters.offset !== undefined){
+        values.push(filters.offset);
+        query += ` OFFSET $${values.length}`;
+    }
+
     query += ` WHERE ${conditions.join(' AND ')} ORDER BY n.created_at DESC`;
 
     const result = await pool.query(query, values);
     return result.rows;
 };
+
+/**
+ * Gets note by id
+ */
+export const getNoteById = async(
+    userId: number,
+    noteId: number,
+): Promise<Note> => {
+    const result = await pool.query(
+        'SELECT * FROM notes WHERE note_id = $1 AND user_id = $2',
+        [noteId, userId]
+    );
+    return result.rows[0] ?? null;
+}
 
 /**
  * Creates a note and optionally links it to a list in a single transaction.
@@ -95,13 +121,15 @@ export const updateNote = async (
     userId: number,
     noteId: number,
     title: string | undefined,
-    content: string | undefined
+    content: string | undefined,
+    pinned: boolean | undefined
 ): Promise<Note | null> => {
     const fields: string[] = [];
     const values: unknown[] = [];
 
     if (title !== undefined)   { fields.push(`title = $${values.push(title)}`); }
     if (content !== undefined) { fields.push(`content = $${values.push(content)}`); }
+    if (pinned !== undefined) { fields.push(`pinned = $${values.push(pinned)}`); }
 
     // Nothing to update — return null so the controller can respond with 400.
     if (fields.length === 0) return null;

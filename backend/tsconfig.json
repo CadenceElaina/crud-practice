@@ -10,11 +10,7 @@
     "module": "commonjs", //"nodenext",
    // "moduleResolution": "",
     "target": "esnext",
-    "types": ["node"], // tells TS "dont auto-load any global type packages, even ones installed"
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
+    "types": ["node", "jest"], // tells TS "dont auto-load any global type packages, even ones installed"
 
     // Other Outputs
     "sourceMap": true,
@@ -35,7 +31,6 @@
 
     // Recommended Options
     "strict": true,
-    "jsx": "react-jsx",
     "verbatimModuleSyntax": false,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,

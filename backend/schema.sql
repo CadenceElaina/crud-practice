@@ -52,6 +52,7 @@ CREATE TABLE notes (
     user_id    INT          REFERENCES users(user_id) ON DELETE CASCADE,
     title      VARCHAR(100) NOT NULL,
     content    TEXT,
+    color  VARCHAR(50), -- skip CHECK for now until FE defines how colors are selected (list of options, hexdecimal, rgba, color picker/wheel etc)
     created_at TIMESTAMPTZ  DEFAULT NOW(),
     updated_at TIMESTAMPTZ  DEFAULT NOW(),
     pinned     BOOLEAN      DEFAULT FALSE
@@ -61,6 +62,9 @@ CREATE TABLE lists (
     list_id    SERIAL PRIMARY KEY,
     user_id    INT         REFERENCES users(user_id) ON DELETE CASCADE,
     name       VARCHAR(50) NOT NULL,
+    color VARCHAR(50) -- CHECK (color ~ ''), -- light-blue etc 40 over 7 
+    description TEXT,
+    is_archived BOOLEAN DEFAULT FALSE, -- give users options to hide lists
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

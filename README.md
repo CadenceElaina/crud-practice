@@ -2,8 +2,6 @@
 
 Minimal CRUD API — TypeScript, Node.js, Express, PostgreSQL. Built as a learning artifact and starter template. Auth included.
 
-> **Repo 1 of 2.** Deliberately simple and complete. Once done, it's frozen — a reference, not a product. See `docs/crud-app-repo1-repo2.txt` for Repo 2 context.
-
 ---
 
 ## Stack
@@ -20,65 +18,114 @@ Minimal CRUD API — TypeScript, Node.js, Express, PostgreSQL. Built as a learni
 
 ---
 
-## Quick Start
+## Local Setup
 
-**Prerequisites:** Node.js ≥ 20, PostgreSQL running locally.
+### Prerequisites
+
+- Node.js >= 20
+- PostgreSQL running locally
+
+### 1. Clone
 
 ```bash
-# 1. Install backend dependencies
-cd backend && npm install
-
-# 2. Configure environment
-cp .env.example .env
-# Fill in your DB credentials and a JWT_SECRET
-
-# 3. Create the database and run the schema
-createdb notesdb
-psql -d notesdb -f backend/schema.sql
-
-# 4. Start the server
-npm run build && npm start
-
-# Dev mode (no build step)
-npx tsx src/index.ts
+git clone <repo-url>
+cd crud-app
 ```
 
-Server runs at `http://localhost:5000` by default (configurable via `PORT` in `.env`).
+### 2. Install dependencies
 
----
+```bash
+cd backend
+npm install
+```
+
+### 3. Environment
+
+```bash
+cp .env.example .env
+# Open .env and fill in DB_USER, DB_PASSWORD, DB_NAME=notesdb, SECRET
+```
+
+### 4. Create databases
+
+```bash
+createdb notesdb
+createdb notesdb_test
+```
+
+### 5. Run schema
+
+```bash
+# From crud-app/backend/
+psql -d notesdb -f schema.sql
+psql -d notesdb_test -f schema.sql
+```
+
+### 6. Start server
+
+```bash
+# Dev (no build step)
+npx tsx src/index.ts
+
+# Production
+npm run build && npm start
+```
+
+### 7. Run tests
+
+```bash
+npm test
+```
+
+Server runs at `http://localhost:5000` by default.
 
 ## Project Structure
 
 ```
+## Project Structure
+
+```
+
 crud-app/
 ├── backend/
-│   ├── src/
-│   │   ├── config/
-│   │   │   ├── database.ts        # pg Pool configuration
-│   │   │   └── db.ts              # Pool error handling + re-export
-│   │   ├── controllers/           # HTTP layer — parse req, format res
-│   │   │   ├── userController.ts
-│   │   │   └── noteController.ts
-│   │   ├── middlewares/
-│   │   │   └── auth.ts            # JWT verification middleware
-│   │   ├── models/
-│   │   │   └── types.ts           # Shared TypeScript interfaces
-│   │   ├── routes/                # Route definitions → controllers
-│   │   │   ├── usersRoutes.ts
-│   │   │   └── noteRoutes.ts
-│   │   ├── services/              # Business logic + DB queries (no req/res)
-│   │   │   ├── userService.ts
-│   │   │   └── noteService.ts
-│   │   └── index.ts               # Entry point, middleware setup, app.listen
-│   ├── schema.sql                 # Database schema (idempotent DDL)
-│   ├── package.json
-│   └── tsconfig.json
-├── src/                           # Frontend (React + Vite)
-│   ├── App.tsx
-│   └── main.tsx
-├── docs/                          # Learning notes — not part of the app
+│ ├── src/
+│ │ ├── config/
+│ │ │ ├── database.ts # pg Pool configuration
+│ │ │ └── db.ts # Pool error handling + re-export
+│ │ ├── controllers/ # HTTP layer — parse req, call service, format res
+│ │ │ ├── userController.ts
+│ │ │ ├── noteController.ts
+│ │ │ ├── listController.ts
+│ │ │ └── tagController.ts
+│ │ ├── middleware/
+│ │ │ └── auth.ts # JWT verification — attaches req.userId
+│ │ ├── models/
+│ │ │ └── types.ts # Shared TypeScript interfaces
+│ │ ├── routes/ # Route definitions → controllers
+│ │ │ ├── usersRoutes.ts
+│ │ │ ├── noteRoutes.ts
+│ │ │ ├── listRoutes.ts
+│ │ │ └── tagRoutes.ts
+│ │ ├── services/ # DB queries — no req/res, returns typed rows
+│ │ │ ├── userService.ts
+│ │ │ ├── noteService.ts
+│ │ │ ├── listService.ts
+│ │ │ └── tagService.ts
+│ │ ├── utils/
+│ │ │ └── params.ts # Shared numeric param parsing helpers
+│ │ └── index.ts # Entry point — middleware, route registration, app.listen
+│ ├── schema.sql # Idempotent DDL — drop/recreate all tables and triggers
+│ ├── package.json
+│ └── tsconfig.json
+├── src/ # Frontend (React + Vite)
+│ ├── App.tsx
+│ └── main.tsx
+├── docs/ # Learning notes — not part of the app
 ├── index.html
-└── package.json                   # Frontend package
+└── package.json # Frontend package
+
+```
+
 ```
 
 ### Request Flow
@@ -98,23 +145,50 @@ Request
 
 ### Public Routes
 
-| Method | Endpoint     | Body                        | Description                    |
-| ------ | ------------ | --------------------------- | ------------------------------ |
-| `POST` | `/api/users` | `{ name, email, password }` | Register a new user            |
-| `GET`  | `/api/users` | —                           | All users (passwords excluded) |
-| `POST` | `/api/login` | `{ email, password }`       | Login — returns JWT            |
-| `GET`  | `/health`    | —                           | Health check                   |
+| Method | Endpoint         | Body                            | Description                                 |
+| ------ | ---------------- | ------------------------------- | ------------------------------------------- |
+| `POST` | `/api/users`     | `{ name, email, password }`     | Register a new user                         |
+| `GET`  | `/api/users`     | —                               | All users (passwords excluded)              |
+| `POST` | `/api/login`     | `{ email, password }`           | Login — returns JWT                         |
+| `PUT`  | `/api/notes/:id` | `{ title?, content?, pinned? }` | Update a note (at least one field required) |
+| `GET`  | `/health`        | —                               | Health check                                |
 
 ### Protected Routes
 
 Requires header: `Authorization: Bearer <token>`
 
-| Method   | Endpoint         | Body                           | Description                          |
-| -------- | ---------------- | ------------------------------ | ------------------------------------ |
-| `GET`    | `/api/notes`     | —                              | All notes for the authenticated user |
-| `POST`   | `/api/notes`     | `{ title, content, list_id? }` | Create a note                        |
-| `PUT`    | `/api/notes/:id` | `{ title, content }`           | Update a note                        |
-| `DELETE` | `/api/notes/:id` | —                              | Delete a note                        |
+#### Notes
+
+| Method   | Endpoint         | Body                            | Description                                |
+| -------- | ---------------- | ------------------------------- | ------------------------------------------ |
+| `GET`    | `/api/notes`     | —                               | All notes (supports `?list_id`, `?search`) |
+| `GET`    | `/api/notes/:id` | —                               | Single note                                |
+| `POST`   | `/api/notes`     | `{ title, content?, list_id? }` | Create a note                              |
+| `PUT`    | `/api/notes/:id` | `{ title?, content?, pinned? }` | Update a note (at least one field)         |
+| `DELETE` | `/api/notes/:id` | —                               | Delete a note                              |
+
+#### Lists
+
+| Method   | Endpoint               | Body                              | Description                        |
+| -------- | ---------------------- | --------------------------------- | ---------------------------------- |
+| `GET`    | `/api/lists`           | —                                 | All lists for user                 |
+| `GET`    | `/api/lists/:id`       | —                                 | Single list                        |
+| `GET`    | `/api/lists/:id/notes` | —                                 | Notes belonging to a list          |
+| `POST`   | `/api/lists`           | `{ name, description?, color? }`  | Create a list                      |
+| `PUT`    | `/api/lists/:id`       | `{ name?, description?, color? }` | Update a list (at least one field) |
+| `DELETE` | `/api/lists/:id`       | —                                 | Delete a list                      |
+
+#### Tags
+
+| Method   | Endpoint                         | Body           | Description          |
+| -------- | -------------------------------- | -------------- | -------------------- |
+| `GET`    | `/api/tags`                      | —              | All tags for user    |
+| `POST`   | `/api/tags`                      | `{ tag_name }` | Create a tag         |
+| `PUT`    | `/api/tags/:id`                  | `{ tag_name }` | Rename a tag         |
+| `DELETE` | `/api/tags/:id`                  | —              | Delete a tag         |
+| `GET`    | `/api/notes/:noteId/tags`        | —              | Tags on a note       |
+| `POST`   | `/api/notes/:noteId/tags/:tagId` | —              | Attach tag to note   |
+| `DELETE` | `/api/notes/:noteId/tags/:tagId` | —              | Detach tag from note |
 
 ### Query Filters (`GET /api/notes`)
 
@@ -133,7 +207,7 @@ Six tables: `users`, `notes`, `lists`, `tags`, `note_tags` (junction), `note_lis
 **Key decisions:**
 
 - Deleting a user cascades to their notes (`ON DELETE CASCADE`)
-- Deleting a list nullifies the reference on surviving notes (`ON DELETE SET NULL`)
+- Deleting a list removes the junction link; the note survives unfiled (ON DELETE CASCADE on note_lists)
 - Note ↔ tag and note ↔ list relationships are many-to-many via junction tables
 - `updated_at` is maintained by a `BEFORE UPDATE` trigger — no application-side timestamp logic needed
 - Passwords stored as bcrypt hashes (`VARCHAR(500)` gives headroom for future algorithm changes)

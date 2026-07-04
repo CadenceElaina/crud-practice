@@ -20,6 +20,7 @@ export interface User{
     password: string;
     created_at: Date;
     updated_at: Date | null;
+    last_login: Date | null;
 }
 
 // The shape of a user we are allowed to send back to a client
@@ -32,11 +33,30 @@ export interface User{
 export type PublicUser = Omit<User, 'password'>;
 
 export interface Note{
-    note_id: number;
-    user_id: number;
+    note_id: number; // PK
+    user_id: number; // FK -> users
     title: string;
     content: string | null;
     created_at: Date;
-    updated_at: Date;
+    updated_at: Date | null;
     pinned: boolean;
+}
+
+export interface List {
+    list_id:     number;      // PK
+    user_id:     number;      // FK -> users
+    name:        string;
+    description: string | null;
+    color:       string | null;
+    is_archived: boolean;
+    created_at:  Date;
+    updated_at:  Date;
+}
+ 
+export interface Tag {
+    tag_id:     number;       // PK
+    user_id:    number;       // FK -> users
+    tag_name:   string;
+    created_at: Date;
+    updated_at: Date;
 }

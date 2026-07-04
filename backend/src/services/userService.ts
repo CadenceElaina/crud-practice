@@ -1,4 +1,4 @@
-import {pool} from '../config/database'
+import {pool} from '../config/db'
 import {PublicUser} from '../models/types';
 
 // Pur data access: takes plain values in, returns rows out. 
@@ -17,7 +17,7 @@ export const createUser = async(
     passwordHash: string
 ): Promise<PublicUser> => { // PublicUser is a type of User but omitting the password
     const result = await pool.query(
-        'INSERT INTO users (name, email, password) VALUES($1, $2, $3) RETURNING user_id,name, created_at',
+        'INSERT INTO users (name, email, password) VALUES($1, $2, $3) RETURNING name, email, created_at, updated_at, last_login',
         [name, email, passwordHash]   
     );
     return result.rows[0];

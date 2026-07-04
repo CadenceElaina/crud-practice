@@ -1,36 +1,23 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../models/types';
+import { parseNumericParam, getValidIdParam } from '../utils/params';
 import {
     getNotesForUser,
+    getNoteById,
     createNote,
     updateNote,
     deleteNote,
 } from '../services/noteService';
-
-/** Parses a route/query parameter to an integer, throwing on NaN. */
-const parseNumericParam = (param: unknown): number => {
-    const n = parseInt(String(param), 10);
-    if (isNaN(n)) throw new Error('Invalid');
-    return n;
-};
-
-/** Runs parseNumericParam and writes a 400 response on failure. Returns null on failure. */
-const getValidIdParam = (res: Response, param: unknown): number | null => {
-    try {
-        return parseNumericParam(param);
-    } catch {
-        res.status(400).json({ error: 'Invalid ID format. Must be an integer.' });
-        return null;
-    }
-};
 
 export const getNotes = async (
     req: AuthenticatedRequest,
     res: Response
 ): Promise<void> => {
     try {
-        const { list_id, search } = req.query;
+        const { list_id, search, limit, offset } = req.query;
 
+        const parsedLimit = limit !== undefined ? parseNumericParam(limit) : undefined;
+        const parsedOffset = offset !== undefined ? parseNumericParam(offset) : undefined;
         const parsedListId = list_id !== undefined
             ? parseNumericParam(list_id)
             : undefined;
@@ -38,6 +25,8 @@ export const getNotes = async (
         const notes = await getNotesForUser(req.userId as number, {
             listId: parsedListId,
             search: typeof search === 'string' ? search : undefined,
+            limit: parsedLimit,
+            offset: parsedOffset,
         });
         res.json(notes);
     } catch (err) {
@@ -45,6 +34,25 @@ export const getNotes = async (
         res
             .status(isValidationError ? 400 : 500)
             .json({ error: isValidationError ? 'Invalid list_id format. Must be an integer.' : 'Database error' });
+    }
+};
+
+export const getNoteHandler = async (
+    req: AuthenticatedRequest,
+    res: Response
+): Promise<void> => {
+    const numericNoteId = getValidIdParam(res, req.params.id);
+    if (numericNoteId === null) return;
+
+    try {
+        const note = await getNoteById(req.userId as number, numericNoteId);
+        if (!note) {
+            res.status(404).json({ error: 'Note not found or unauthorized' });
+            return;
+        }
+        res.json(note);
+    } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Database error' });
     }
 };
 
@@ -80,9 +88,9 @@ export const putNote = async (
     const numericNoteId = getValidIdParam(res, req.params.id);
     if (numericNoteId === null) return;
 
-    const { title, content } = req.body;
+    const { title, content, pinned } = req.body;
 
-    if (title === undefined && content === undefined) {
+    if (title === undefined && content === undefined && pinned === undefined) {
         res.status(400).json({ error: 'At least one of title or content must be provided.' });
         return;
     }
@@ -91,7 +99,7 @@ export const putNote = async (
         // Returns null when no row matched note_id + user_id.
         // A single 404 covers both "not found" and "belongs to someone else"
         // so callers cannot probe which note IDs exist.
-        const updated = await updateNote(req.userId as number, numericNoteId, title, content);
+        const updated = await updateNote(req.userId as number, numericNoteId, title, content, pinned);
         if (!updated) {
             res.status(404).json({ error: 'Note not found or unauthorized' });
             return;

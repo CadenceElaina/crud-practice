@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit';
 import {PORT} from './config/env';
 import usersRoutes from './routes/usersRoutes';
 import noteRoutes from './routes/noteRoutes';
+import listRoutes from './routes/listRoutes';
+import tagRoutes from './routes/tagRoutes';
 
 const app = express();
 
@@ -28,21 +30,37 @@ app.use(express.json());
 // time window. Cheapest meaningful security win for an auth endpoint.
 // otherwise a script can try thousands of passwords against one email per minute.
 
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+const makeAuthLimiter = (message: string) => rateLimit({
+    windowMs: 15 * 60 * 1000,
     limit: 10,
     standardHeaders: true,
     legacyHeaders: false,
-    message: {error: 'Toom many login attempts, please try again later'},
+    message: { error: message },
 });
+
+const loginLimiter    = makeAuthLimiter('Too many login attempts, please try again later');
+const registerLimiter = makeAuthLimiter('Too many register attempts, please try again later')
+
 app.use('/api/login', loginLimiter);
+app.use('/api/users', registerLimiter);
 app.use('/api', usersRoutes);
 app.use('/api', noteRoutes);
+app.use('/api', listRoutes);
+app.use('/api', tagRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({status: 'UP', timestamp: new Date().toISOString()});
 });
 
-app.listen(PORT, '0.0.0.0', () =>{
-    console.log(`The application is listening on http://localhost:${PORT}`);
-});
+export { app };
+
+if(require.main === module){
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`The application is listening on http://localhost:${PORT}`);
+    })
+}
+
+//app.listen(PORT, '0.0.0.0', () =>{
+//    console.log(`The application is listening on http://localhost:${PORT}`);
+//});
+
