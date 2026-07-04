@@ -9,110 +9,112 @@
 DROP TRIGGER IF EXISTS update_notes_modtime ON notes;
 DROP TRIGGER IF EXISTS update_lists_modtime ON lists;
 DROP TRIGGER IF EXISTS update_tags_modtime ON tags;
-
-
-
--- Cascade anything else pointing to this table via a FK should be delinked or drop obj with it
-DROP TABLE IF EXISTS notes CASCADE;
-DROP TABLE IF EXISTS tags CASCADE;
-DROP TABLE IF EXISTS lists CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS note_tags CASCADE;
-DROP TABLE IF EXISTS note_lists CASCADE;
+DROP TRIGGER IF EXISTS update_users_modtime ON users;
+ 
+DROP TABLE IF EXISTS note_tags   CASCADE;
+DROP TABLE IF EXISTS note_lists  CASCADE;
+DROP TABLE IF EXISTS notes       CASCADE;
+DROP TABLE IF EXISTS tags        CASCADE;
+DROP TABLE IF EXISTS lists       CASCADE;
+DROP TABLE IF EXISTS users       CASCADE;
+ 
 -- =========================================================================
--- 1. SETUP FUNCTIONS & TRIGGERS FIRST
+-- 1. SHARED TRIGGER FUNCTION
 -- =========================================================================
--- Create trigger function to automatically update the 'updated_at' column
--- NEW isnt just the updated_at field - its the entire row as it will exist after the write. The trigger takes the entire row object and overwrites one field on it (NEW.updated_at = NOW()) before returning it. 
--- RETURNS TRIGGER is a special pseudo-type that exists only for trigger functions. It tells Postgres "this function will be invoked by the trigger system, not called directly in a query" special vars NEW and OLD only exist inside a trigger context. 
-CREATE
-OR REPLACE FUNCTION update_modified_column()
-RETURNS TRIGGER AS $$ 
-BEGIN NEW.updated_at = NOW();
-
-RETURN NEW;
-
+-- Overwrites updated_at on the mutated row before the write is committed.
+-- RETURNS TRIGGER and the NEW/OLD variables are only valid inside trigger context.
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
-
-$$ language 'plpgsql';
-
--- Fixed typo: changed 'plpsql' to 'plpgsql'
+$$ LANGUAGE 'plpgsql';
+ 
 -- =========================================================================
--- 2. CREATE INDEPENDENT TABLES (No Foreign Keys)
+-- 2. INDEPENDENT TABLES (no foreign keys)
 -- =========================================================================
 CREATE TABLE users (
-    user_id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    email VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(500) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    last_login TIMESTAMPTZ 
+    user_id    SERIAL PRIMARY KEY,
+    name       VARCHAR(50)  NOT NULL,
+    email      VARCHAR(50)  UNIQUE NOT NULL,
+    password   VARCHAR(500) NOT NULL,
+    created_at TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at TIMESTAMPTZ  DEFAULT NOW(),
+    last_login TIMESTAMPTZ
 );
-
-
-
+ 
 -- =========================================================================
--- 3. CREATE DEPENDENT TABLES (Contains Foreign Keys)
+-- 3. DEPENDENT TABLES (reference users)
 -- =========================================================================
--- Create the notes table (Postgres uses SERIAL instead of MySQL AUTO_INCREMENT)
 CREATE TABLE notes (
-    note_id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-        title VARCHAR(100) NOT NULL,
-        content TEXT,
-        -- Using TEXT for unlimited capacity instead of limiting to a massive VARCHAR
-       -- list_id INT REFERENCES lists(list_id) ON DELETE SET NULL, --(delete a list -> notes survive, just unfiled)
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        pinned BOOLEAN DEFAULT FALSE
+    note_id    SERIAL PRIMARY KEY,
+    user_id    INT          REFERENCES users(user_id) ON DELETE CASCADE,
+    title      VARCHAR(100) NOT NULL,
+    content    TEXT,
+    created_at TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at TIMESTAMPTZ  DEFAULT NOW(),
+    pinned     BOOLEAN      DEFAULT FALSE
 );
-
+ 
 CREATE TABLE lists (
-    list_id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-    name VARCHAR(50) NOT NULL,
+    list_id    SERIAL PRIMARY KEY,
+    user_id    INT         REFERENCES users(user_id) ON DELETE CASCADE,
+    name       VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
+ 
 CREATE TABLE tags (
-    tag_id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
-    tag_name VARCHAR(30) NOT NULL,-- NOT NULL UNIQUE, each user has a set of tags - tags can repeat between users
-    UNIQUE(user_id, tag_name), -- each user has a unique set of tags
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    tag_id     SERIAL PRIMARY KEY,
+    user_id    INT         REFERENCES users(user_id) ON DELETE CASCADE,
+    tag_name   VARCHAR(30) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    -- Tags are unique per user; the same tag name may exist across different users.
+    UNIQUE (user_id, tag_name)
 );
-
--- Attach the timestamp trigger to the notes table
-CREATE TRIGGER update_notes_modtime BEFORE
-UPDATE
-    ON notes FOR EACH ROW EXECUTE FUNCTION update_modified_column();
-
-CREATE TRIGGER update_lists_modtime BEFORE
-UPDATE
-    ON lists FOR EACH ROW EXECUTE FUNCTION update_modified_column();
-
-CREATE TRIGGER update_tags_modtime BEFORE
-UPDATE
-    ON tags FOR EACH ROW EXECUTE FUNCTION update_modified_column();
-
+ 
 -- =========================================================================
--- 4. CREATE JUNCTION TABLES (Many-to-Many Relationships)
+-- 4. TRIGGERS (attach updated_at automation)
 -- =========================================================================
--- Create the junction table to bridge notes and tags
+CREATE TRIGGER update_users_modtime
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+ 
+CREATE TRIGGER update_notes_modtime
+    BEFORE UPDATE ON notes
+    FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+ 
+CREATE TRIGGER update_lists_modtime
+    BEFORE UPDATE ON lists
+    FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+ 
+CREATE TRIGGER update_tags_modtime
+    BEFORE UPDATE ON tags
+    FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+ 
+-- =========================================================================
+-- 5. JUNCTION TABLES (many-to-many relationships)
+-- =========================================================================
+-- Deleting either side removes the link; the note/tag itself is unaffected
+-- unless its own table also has a CASCADE rule.
 CREATE TABLE note_tags (
     note_id INT REFERENCES notes(note_id) ON DELETE CASCADE,
-    tag_id INT REFERENCES tags(tag_id) ON DELETE CASCADE,
+    tag_id  INT REFERENCES tags(tag_id)   ON DELETE CASCADE,
     PRIMARY KEY (note_id, tag_id)
 );
-
+ 
 CREATE TABLE note_lists (
-   -- list_id SERIAL PRIMARY KEY,
-    note_id INT REFERENCES notes(note_id) ON DELETE CASCADE,
-    list_id INT REFERENCES lists(list_id) ON DELETE CASCADE,
+    note_id INT REFERENCES notes(note_id)  ON DELETE CASCADE,
+    list_id INT REFERENCES lists(list_id)  ON DELETE CASCADE,
     PRIMARY KEY (list_id, note_id)
 );
-
--- add indexes so notes / lists can be found by tag id / note id
-CREATE INDEX idx_note_tags_tag_id ON note_tags(tag_id); -- naming convention: (idx_+table+col)
-CREATE INDEX idx_note_lists_note_id ON note_lists(note_id); -- idx+table+col
+ 
+-- =========================================================================
+-- 6. INDEXES
+-- =========================================================================
+-- Junction table PKs cover (list_id, note_id) and (note_id, tag_id).
+-- These cover the reverse-lookup direction not already served by the PK.
+CREATE INDEX idx_note_tags_tag_id   ON note_tags(tag_id);
+CREATE INDEX idx_note_lists_note_id ON note_lists(note_id);

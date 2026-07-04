@@ -36,19 +36,21 @@ Extend `Request` to attach `userId` after JWT verification:
 
 ```typescript
 // src/models/types.ts
-import { Request } from 'express';
+import { Request } from "express";
 
 export interface AuthenticatedRequest extends Request {
-    userId?: number; // matches SERIAL (INT) user_id from Postgres
+  userId?: number; // matches SERIAL (INT) user_id from Postgres
 }
 ```
 
 Named export (for shared use across files):
+
 ```typescript
-import type { AuthenticatedRequest } from '../models/types';
+import type { AuthenticatedRequest } from "../models/types";
 ```
 
 Default export (if only used in one place):
+
 ```typescript
 export default interface AuthenticatedRequest extends Request { ... }
 import AuthenticatedRequest from '../types';
@@ -73,7 +75,7 @@ index.ts imports db.ts → module !== require.main → false → connectToPool()
 ```typescript
 // Guard: only execute if this file was run directly (not imported)
 if (require.main === module) {
-    connectToPool().catch((err) => console.error('DB connection failed:', err));
+  connectToPool().catch((err) => console.error("DB connection failed:", err));
 }
 ```
 
@@ -95,6 +97,9 @@ express, pg, dotenv, bcrypt, jsonwebtoken, cors → dependencies
 npm install express dotenv cors bcrypt jsonwebtoken pg
 npm install --save-dev typescript tsx @types/node @types/express @types/pg @types/bcrypt @types/cors @types/jsonwebtoken
 ```
+
+npm install moment --save ... app cannot run without this package -> packag.json: "dependencies": {... "moment": "^version"}
+npm install karma --save-dev ... when developing certain tools are useful -> "devDependencies": {"karma": "^version"} - not needed to run the app in its normal state
 
 ---
 
@@ -129,6 +134,7 @@ psql -d name_of_db -f path/to/schema.sql
 
 **`-h localhost` flag** — forces psql to connect over TCP instead of the Unix socket.  
 Node's `pg` library connects over TCP by default — use this flag when you want your CLI session to behave the same way.
+-why does this matter?
 
 ---
 
@@ -153,6 +159,7 @@ npx tsc --init   # generates tsconfig.json — configure rootDir, outDir, module
 ```
 
 `package.json` scripts:
+
 ```json
 {
   "scripts": {
@@ -164,19 +171,20 @@ npx tsc --init   # generates tsconfig.json — configure rootDir, outDir, module
 ```
 
 Minimal working server:
+
 ```typescript
-import express, { Request, Response } from 'express';
+import express, { Request, Response } from "express";
 const app = express();
 const PORT: number = Number(process.env.PORT) || 3000;
 // Number (capital) = JS wrapper object. number (lowercase) = TS primitive type. Always use lowercase for annotations.
 
 app.use(express.json());
 
-app.get('/', (req: Request, res: Response) => {
-    res.send('Hello');
+app.get("/", (req: Request, res: Response) => {
+  res.send("Hello");
 });
 
 app.listen(PORT, () => {
-    console.log(`Listening on http://localhost:${PORT}`);
+  console.log(`Listening on http://localhost:${PORT}`);
 });
 ```

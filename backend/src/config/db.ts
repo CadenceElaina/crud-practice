@@ -48,4 +48,4 @@ export { pool }; // allow other modules (route handlers) reuse this one shared c
 // module always refers to the current files own module object - inside db.ts, module always means "db.ts" no matter whos running it
 // require.main always points to whatever file was the original entry point 
 // index.ts does import {pool} from './db' -> index.ts is the entry point -> require.main (pointing at index) and module (pointing at db) are two different objects -> false -> connectToPool() does not auto-run on import
-//so it prevents other files from running it on import? module -> current files own module object and require.main -> whichever file was the original entry point also why is Number the container obj used for the env var
+//so it prevents other files from running it on import? module -> current files own module object and require.main -> whichever file was the original entry point 

@@ -15,7 +15,10 @@ const app = express();
 // common attacks. Cheap to add, costs nothing for a JSON API.
 app.use(helmet());
 
-app.use(cors());
+//app.use(cors());
+app.use(cors({
+    origin: process.env.ALLOWED_ORIGIN || '*', // TODO: restrict in production
+}));
 
 // Without this, req.body is unedfined and this middle ware reads the
 // raw request body, parses it as JSON, and attaches the result to req.body.

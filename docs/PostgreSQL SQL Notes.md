@@ -22,42 +22,44 @@ Pool keeps connections alive and checks them out/back in as needed.
 ### Basic Connection (Client)
 
 ```typescript
-import { Client } from 'pg';
+import { Client } from "pg";
 
 const client = new Client();
 await client.connect();
 
 try {
-    const res = await client.query('SELECT $1::text AS message', ['Hello world!']);
-    console.log(res.rows[0].message);
+  const res = await client.query("SELECT $1::text AS message", [
+    "Hello world!",
+  ]);
+  console.log(res.rows[0].message);
 } catch (err) {
-    console.error(err);
+  console.error(err);
 } finally {
-    await client.end();
+  await client.end();
 }
 ```
 
 ### Pool Setup
 
 ```typescript
-import { Pool } from 'pg';
+import { Pool } from "pg";
 
 const pool = new Pool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: Number(process.env.DB_PORT),
-    max: 20,                       // max simultaneous clients
-    idleTimeoutMillis: 30000,      // close idle clients after 30s
-    connectionTimeoutMillis: 2000, // throw if can't connect in 2s
-    maxLifetimeSeconds: 60,        // recycle connections after 60s
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: Number(process.env.DB_PORT), //Why Number over number?
+  max: 20, // max simultaneous clients
+  idleTimeoutMillis: 30000, // close idle clients after 30s
+  connectionTimeoutMillis: 2000, // throw if can't connect in 2s
+  maxLifetimeSeconds: 60, // recycle connections after 60s
 });
 
 // Catch errors on idle clients (network partition, backend crash)
-pool.on('error', (err, client) => {
-    console.error('Unexpected error on idle client', err);
-    process.exit(-1);
+pool.on("error", (err, client) => {
+  console.error("Unexpected error on idle client", err);
+  process.exit(-1);
 });
 ```
 
@@ -65,20 +67,20 @@ pool.on('error', (err, client) => {
 
 ```typescript
 // Single query — pool auto-manages checkout/release
-const result = await pool.query('SELECT * FROM users WHERE id = $1', [1]);
+const result = await pool.query("SELECT * FROM users WHERE id = $1", [1]);
 
-// Manual checkout — use for transactions
+// Manual checkout — use for transactions - explain difference between transactions vs single queries?
 const client = await pool.connect();
 try {
-    await client.query('BEGIN');
-    const res = await client.query('SELECT * FROM users WHERE id = $1', [1]);
-    await client.query('COMMIT');
-    return res.rows[0];
+  await client.query("BEGIN");
+  const res = await client.query("SELECT * FROM users WHERE id = $1", [1]);
+  await client.query("COMMIT");
+  return res.rows[0];
 } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
+  await client.query("ROLLBACK");
+  throw err;
 } finally {
-    client.release(); // ALWAYS release — pool drains and future requests hang forever if you don't
+  client.release(); // ALWAYS release — pool drains and future requests hang forever if you don't
 }
 
 // Shutdown (waits for all checked-out clients to return first)
@@ -87,19 +89,21 @@ await pool.end();
 
 ### async vs callback execution order
 
-```typescript
-console.log('starting async query');
-const result = await pool.query('SELECT NOW()');
-console.log('async query finished');
+// explain what a callback and async op are?
 
-console.log('starting callback query');
-pool.query('SELECT NOW()', (err, res) => {
-    console.log('callback query finished');
+```typescript
+console.log("starting async query");
+const result = await pool.query("SELECT NOW()");
+console.log("async query finished");
+
+console.log("starting callback query");
+pool.query("SELECT NOW()", (err, res) => {
+  console.log("callback query finished");
 });
 
-console.log('calling end');
+console.log("calling end");
 await pool.end();
-console.log('pool has drained');
+console.log("pool has drained");
 
 // Output:
 // starting async query
@@ -114,12 +118,12 @@ console.log('pool has drained');
 
 ## ACID
 
-| | Property | Meaning |
-|---|---|---|
-| **A** | Atomicity | Transactions are all-or-nothing |
-| **C** | Consistency | Valid DB state → valid DB state |
-| **I** | Isolation | Transactions don't affect each other |
-| **D** | Durability | Changes are permanent after commit — survives server restart |
+|       | Property    | Meaning                                                      |
+| ----- | ----------- | ------------------------------------------------------------ |
+| **A** | Atomicity   | Transactions are all-or-nothing                              |
+| **C** | Consistency | Valid DB state → valid DB state                              |
+| **I** | Isolation   | Transactions don't affect each other                         |
+| **D** | Durability  | Changes are permanent after commit — survives server restart |
 
 ---
 
@@ -130,6 +134,7 @@ console.log('pool has drained');
 PostgreSQL supports `TEXT[]` arrays but storing tags as a column array violates [First Normal Form (1NF)](https://en.wikipedia.org/wiki/First_normal_form) — can't cleanly query or index into it.
 
 Junction tables (`note_tags`, `note_lists`) instead:
+
 - Composite PK `PRIMARY KEY (note_id, tag_id)` prevents duplicate pairings at the DB level
   - Without it: you could insert note 5 → tag 3 five separate times
 - Each FK column is independently indexable
@@ -148,7 +153,7 @@ A note can exist independently of any list — it's a real object on its own. Wh
 ```
 ON DELETE CASCADE  → dependent row has no identity without its parent
                      note_tags: note's gone → link is gone
-                     
+
 ON DELETE SET NULL → dependent row is independent, just references a parent
                      notes.list_id: list deleted → note survives, list_id = NULL
 ```
@@ -174,6 +179,7 @@ CREATE INDEX idx_note_tags_tag_id ON note_tags(tag_id);
 ```
 
 What Postgres does when you create this:
+
 1. Allocates separate disk storage for `idx_note_tags_tag_id`
 2. Scans `note_tags`, extracts every `tag_id` and pairs it with a **TID (Tuple ID)** — a pointer to where the row lives on disk
 3. Organizes those pairs into a B-Tree sorted by `tag_id`
@@ -433,6 +439,7 @@ $$ LANGUAGE 'plpgsql';
 ```
 
 **What changed from draft → final:**
+
 - `author` → `users` (added `email`, `password VARCHAR(500)`, `last_login`)
 - `list_id` removed from `notes` → moved to `note_lists` junction table (supports many-to-many)
 - Tags column → `tags` table + `note_tags` junction table

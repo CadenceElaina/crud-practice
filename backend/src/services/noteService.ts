@@ -1,96 +1,75 @@
-//db queries
-import {pool} from '../config/db';
-import {Note} from '../models/types';
+import { pool } from '../config/db';
+import { Note } from '../models/types';
 
-interface NoteFilters{
-    /**
-     * `| undefined` is spelled out explicitly (not just `listId?:`) because
-     * tsconfig has exactOptionalPropertyTypes on - that flag means an optional
-     * property can be OMITTED or be its type, but assigning the literal
-     * value `undefined` to it is a type error unless undefined is part of
-     * the declared type. The controller buidls this object conditionally and
-     * may explcitly pass `undefined`, so we declare for it.
-     */
-    listId?: string | undefined;
+interface NoteFilters {
+    // Explicit `| undefined` required because tsconfig has exactOptionalPropertyTypes enabled.
+    listId?: number | undefined;
     search?: string | undefined;
 }
 
 /**
- * Builds the WHERE clause dynamically based on which filters are passed,
- * matching the query params documented in the README:
- * ?list_id=3                   Filter by list
- * ?search=keyword              Search title and content
- * ?list_id=3&search=keyword    Combined
- * 
- * list_id lives in the notes_lists junction table, not on notes itself
- * (see schema.sql), so filtering by it requries a join.
- * 
- * NOTE: ILIKE `%term$` is a simple, substring search. It can't use
- * a normal B-tree index (it'll table-scan), which is fine at small
- * scales. A real "full-text search" - the kind suggested in the README
- * would use Postgres's tsvector/tsquery within a GIN index instead.
- * Thats a documented gap, not implemented here.
+ * Returns notes for a user, with optional list and/or substring search filters.
+ *
+ * list_id lives in the note_lists junction table, so filtering by it requires a JOIN.
+ * ILIKE '%term%' is a sequential-scan substring search — fine at small scale.
+ * Production full-text search would use tsvector/tsquery with a GIN index.
  */
-
-export const getNotesForUser = async(
+export const getNotesForUser = async (
     userId: number,
     filters: NoteFilters
 ): Promise<Note[]> => {
     const conditions: string[] = ['n.user_id = $1'];
     const values: unknown[] = [userId];
-    let query = 'SELECT DISTINCT n.* FROM notes n'; // get unique values of n.(attribute(s)) from our notes table aliased n
+    // DISTINCT prevents duplicate rows when a note belongs to multiple lists.
+    let query = 'SELECT DISTINCT n.* FROM notes n';
 
-    if(filters.listId) {
-        query += ' JOIN note_lists nl ON nl.note_id = n.note_id'; // if we include a list in the filter we should join the note lists table with the notes table on the PK note_id so taht we can access the users lists
+    if (filters.listId) {
+        query += ' JOIN note_lists nl ON nl.note_id = n.note_id';
         values.push(filters.listId);
-        conditions.push(`nl.list_id = $${values.length}`); // not sure why the length of values = our list_id we want
-        // ig $1 is a variable passed in the req and we want the one of values.length to id which value represents the list_id we need
+        // values.push() returns the new array length, which equals the $N index of this value.
+        conditions.push(`nl.list_id = $${values.length}`);
     }
 
-    if(filters.search){
-        values.push(`%{filters.search}%`);
+    if (filters.search) {
+        values.push(`%${filters.search}%`);
+        // Parens required — AND binds tighter than OR, so without them a combined
+        // list_id + search query would produce incorrect results.
         conditions.push(
-            `n.title ILIKE $${values.length} OR n.content ILIKE $${values.length}`
+            `(n.title ILIKE $${values.length} OR n.content ILIKE $${values.length})`
         );
     }
 
-    query += ` WHERE ${conditions.join(' AND ')} ORDER BY n.created_at DESC`; // combine filters/search and order by most recent
+    query += ` WHERE ${conditions.join(' AND ')} ORDER BY n.created_at DESC`;
 
-    const result = await pool.query(query,values);
+    const result = await pool.query(query, values);
     return result.rows;
-}
-// Do we allow for ordering by asc? oldest? or last modified or variants?
+};
 
 /**
- * Creates a note and, optionally, links it to a list inside ONE transaction on ONE dedicated connection.
- * 
- * Each `pool.query(...)` calls does NOT give you a transaction.
- * Each `pool.query()` call checks a client out of the pool, runs
- * ONE query, and returns it - so that BEGIN, the INSERT, and COMMIT
- * can each land on a different physical connection.
- * 
- * Check out a single client with `pool.connect()`, run every statement
- * in the transaction on THAT client, then release it back to the pool
- * in a `finally` so it's returned even if something throws an error.
+ * Creates a note and optionally links it to a list in a single transaction.
+ *
+ * pool.query() borrows a connection per call, so BEGIN/INSERT/COMMIT could land
+ * on three different connections. pool.connect() holds one connection for the
+ * entire transaction; finally{} ensures it is always returned to the pool.
  */
-
-export const createNote = async(
+export const createNote = async (
     userId: number,
     title: string,
-    content: string,
+    content: string | undefined,
     listId?: number
-): Promise<Note> =>{
+): Promise<Note> => {
     const client = await pool.connect();
-    try{
+    try {
         await client.query('BEGIN');
 
+        // RETURNING * gives back the inserted row with all DB-applied defaults.
         const noteResult = await client.query(
             'INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3) RETURNING *',
-            [userId, title, content] // this is whats returned or * is all rows? idk what this syntax istbh
+            [userId, title, content ?? null]
         );
         const newNote = noteResult.rows[0];
 
-        if(listId){
+        if (listId) {
             await client.query(
                 'INSERT INTO note_lists (note_id, list_id) VALUES ($1, $2)',
                 [newNote.note_id, listId]
@@ -99,34 +78,55 @@ export const createNote = async(
 
         await client.query('COMMIT');
         return newNote;
-    } catch(err){
-        await client.query('ROLLBACK') //ACID
+    } catch (err) {
+        await client.query('ROLLBACK');
         throw err;
-    } finally{
+    } finally {
         client.release();
     }
 };
 
-export const updateNote = async(
-    userId: string,
-    noteId: string,
-    title: string,
-    content: string
-): Promise<Note | null> =>{
+/**
+ * Partially updates a note's title and/or content.
+ * Only provided fields are written; omitting a field leaves it unchanged.
+ * Returns null when no row matched note_id + user_id (not found or unauthorized).
+ */
+export const updateNote = async (
+    userId: number,
+    noteId: number,
+    title: string | undefined,
+    content: string | undefined
+): Promise<Note | null> => {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+
+    if (title !== undefined)   { fields.push(`title = $${values.push(title)}`); }
+    if (content !== undefined) { fields.push(`content = $${values.push(content)}`); }
+
+    // Nothing to update — return null so the controller can respond with 400.
+    if (fields.length === 0) return null;
+
+    values.push(noteId, userId);
+    const noteIdIdx = values.length - 1;
+    const userIdIdx = values.length;
+
     const result = await pool.query(
-        'UPDATE notes SET ttile = $1, content = $2 WHERE note_id = $3 AND user_id = $4 RETURNING *',
-        [title, content, noteId, userId]
+        `UPDATE notes SET ${fields.join(', ')} WHERE note_id = $${noteIdIdx} AND user_id = $${userIdIdx} RETURNING *`,
+        values
     );
     return result.rows[0] ?? null;
 };
 
-export const deleteNote =async(
+/**
+ * Deletes a note owned by the user. Returns false when nothing was deleted.
+ */
+export const deleteNote = async (
     userId: number,
-    noteId: string
-): Promise<boolean> =>{
+    noteId: number
+): Promise<boolean> => {
     const result = await pool.query(
-        'DELETE FROM notes WHERE note_id = $1 AND user_id = $2 RETURNING *',
+        'DELETE FROM notes WHERE note_id = $1 AND user_id = $2',
         [noteId, userId]
     );
-    return (result.rowCount ?? 0 ) > 0; // number of notes deleted?
-}
+    return (result.rowCount ?? 0) > 0;
+};

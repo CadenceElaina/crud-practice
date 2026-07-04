@@ -15,7 +15,7 @@ export const createUser = async(
     name: string,
     email: string,
     passwordHash: string
-): Promise<PublicUser> => {
+): Promise<PublicUser> => { // PublicUser is a type of User but omitting the password
     const result = await pool.query(
         'INSERT INTO users (name, email, password) VALUES($1, $2, $3) RETURNING user_id,name, created_at',
         [name, email, passwordHash]   

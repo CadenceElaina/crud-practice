@@ -22,8 +22,6 @@ psql -d name_of_db -f parent_dir/file_name.sql
 psql -d notesdb -f backend/schema.sql
 ```
 
-<!-- CORRECTED: 'schemal.sql' → 'schema.sql' -->
-
 ## 2. Structural Guardrails & Normalization
 
 ### ACID Properties
@@ -50,8 +48,6 @@ Using a `note_tags` junction table ensures **referential integrity** and prevent
 - **Note Tags** — a row in `note_tags` has zero identity without its parents. If a note or tag is deleted, the bridge row is dropped via `ON DELETE CASCADE`
 
 ## 3. BEFORE UPDATE Trigger Mechanics
-
-<!-- CORRECTED: 'BEFORE UDPATE' → 'BEFORE UPDATE' -->
 
 Tracks row updates without manual timestamp handling. The schema intercepts operations in memory before writing to disk.
 

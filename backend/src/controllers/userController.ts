@@ -42,14 +42,19 @@ export const registerUser = async(
         const passwordHash = await bcrypt.hash(password, saltRounds);
         const newUser = await createUser(name, email,passwordHash);
         res.status(201).json(newUser);
-    } catch(err: any) { 
+    } catch(err) { 
+         if (err instanceof Error && (err as any).code === '23505'){
+             res.status(409).json({error: 'Email already registered'});
+          return;
+         }
+          res.status(500).json({error: err instanceof Error? err.message: 'Database'});
     // cast to any so that the check err?.code === '23505' works otherwise compile would complain that code doesnt exist on type unknown
         // Postgres error code 23505 = unique_violation. users.email is UNIQUE,
         // any duplicate emails on signup gets a 409 instead of generic 500
-        if(err?.code == '23505'){
-            res.status(409).json({error: 'Email already registered'});
-            return;
-        } res.status(500).json({error: err instanceof Error? err.message: 'Database'});
+     //   if(err?.code == '23505'){
+       //     res.status(409).json({error: 'Email already registered'});
+         //   return;
+       // } res.status(500).json({error: err instanceof Error? err.message: 'Database'});
     }
 };
 
@@ -83,8 +88,6 @@ export const loginUser = async(
         const token = jwt.sign({id: user.user_id}, JWT_SECRET, {
             expiresIn: '1d',
         });
-
-        // return token and user? but wahts             user: {id: user.user_id, email},
 
         res.status(200).json({
             token,

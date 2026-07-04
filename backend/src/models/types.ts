@@ -6,7 +6,7 @@ import {Request} from 'express';
  * the global Express.Request type (which would leak into every file that imports express, even ones that have nothing to do with auth),
  * we extend Request LOCALLY and use AuthenticatedRequest ONLY on routes
  * that sit behind authenticateToken.
- * which does..?
+ * Modifying Express's types injects changes like userId into every single route handler across the app. - only apply to routes requiring auth - prevents accessing it when its undefined
  */
 
 export interface AuthenticatedRequest extends Request {
@@ -26,7 +26,8 @@ export interface User{
 // Specifically missing `password`. Using a derived type (Omit) instead
 // of writing this out by hand means if a field is ever renamed on User,
 // that this will stay in sync.
-// ok but what is Omit<>;? And how does it stay in sync?
+// Omit - TS utility type - creates a brand new object type by copying an existing interface and removing specific keys
+// User changes -> PublicUser inherits changes without needing to be updated when User is updated
 
 export type PublicUser = Omit<User, 'password'>;
 
