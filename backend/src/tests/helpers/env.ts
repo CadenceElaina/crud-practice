@@ -3,3 +3,4 @@ import { config } from 'dotenv';
 config({ quiet: true });
 
 // Force test DB - overrides whatever DB_NAME is in .env
+process.env.DB_NAME = 'notesdb_test';

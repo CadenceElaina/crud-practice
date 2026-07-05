@@ -38,11 +38,6 @@ const makeAuthLimiter = (message: string) => rateLimit({
     message: { error: message },
 });
 
-const loginLimiter    = makeAuthLimiter('Too many login attempts, please try again later');
-const registerLimiter = makeAuthLimiter('Too many register attempts, please try again later')
-
-app.use('/api/login', loginLimiter);
-app.use('/api/users', registerLimiter);
 app.use('/api', usersRoutes);
 app.use('/api', noteRoutes);
 app.use('/api', listRoutes);

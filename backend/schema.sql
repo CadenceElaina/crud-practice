@@ -62,7 +62,7 @@ CREATE TABLE lists (
     list_id    SERIAL PRIMARY KEY,
     user_id    INT         REFERENCES users(user_id) ON DELETE CASCADE,
     name       VARCHAR(50) NOT NULL,
-    color VARCHAR(50) -- CHECK (color ~ ''), -- light-blue etc 40 over 7 
+    color VARCHAR(50), -- CHECK (color ~ ''), -- light-blue etc 40 over 7 
     description TEXT,
     is_archived BOOLEAN DEFAULT FALSE, -- give users options to hide lists
     created_at TIMESTAMPTZ DEFAULT NOW(),

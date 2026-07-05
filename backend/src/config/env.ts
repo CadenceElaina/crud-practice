@@ -21,6 +21,6 @@ function requireEnv(name: string): string{
     }
     return value;
 }
-
+process.env.NODE_ENV = 'test';
 export const JWT_SECRET = requireEnv('SECRET');
 export const PORT: number = Number(process.env.PORT) || 5000;
